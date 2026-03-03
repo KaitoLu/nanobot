@@ -1,0 +1,78 @@
+# Multi-bot Docker Compose — master + mimi + lili
+#
+# 宿主機目錄結構：
+#   ~/.nanobot/master/   → master bot (管理員 nanobot)
+#   ~/.nanobot/mimi/     → mimi bot (MCP 資料查詢)
+#   ~/.nanobot/lili/     → lili bot (自動化排程)
+#
+# 常用指令：
+#   docker compose -f docker-compose.multi.yml up -d          # 全部啟動
+#   docker compose -f docker-compose.multi.yml logs -f mimi   # 看 mimi 日誌
+#   docker ps --filter "label=nanobot.role=subbot"            # 列出所有子 bot
+
+x-bot-base: &bot-base
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: nanobot-ai:latest   # 固定 image 名稱，master 建新容器時引用這個
+  restart: unless-stopped
+  command: ["gateway"]
+  deploy:
+    resources:
+      limits:
+        cpus: '1'
+        memory: 1G
+      reservations:
+        cpus: '0.25'
+        memory: 256M
+
+services:
+
+  # ── Master Bot (管理員專用) ───────────────────────────────────────────
+  master:
+    <<: *bot-base
+    container_name: nanobot-master
+    labels:
+      nanobot.role: master
+    environment:
+      # master 建新容器時用這個路徑寫設定檔（宿主機真實路徑）
+      HOST_NANOBOT_DIR: "${HOME}/.nanobot"
+    volumes:
+      - ~/.nanobot/master:/root/.nanobot
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ~/.nanobot:/root/.nanobot-host   # 讓 master 可寫新 bot 的設定
+    networks:
+      - botnet
+
+  # ── Mimi Bot ─────────────────────────────────────────────────────────
+  mimi:
+    <<: *bot-base
+    container_name: nanobot-mimi
+    labels:
+      nanobot.role: subbot
+      nanobot.name: mimi
+    volumes:
+      - ~/.nanobot/mimi:/root/.nanobot
+    ports:
+      - "8081:8080"
+    networks:
+      - botnet
+
+  # ── Lili Bot ─────────────────────────────────────────────────────────
+  lili:
+    <<: *bot-base
+    container_name: nanobot-lili
+    labels:
+      nanobot.role: subbot
+      nanobot.name: lili
+    volumes:
+      - ~/.nanobot/lili:/root/.nanobot
+    ports:
+      - "8082:8080"
+    networks:
+      - botnet
+
+networks:
+  botnet:
+    driver: bridge
+    name: nanobot-botnet   # 固定網路名稱，master 建新容器時用這個

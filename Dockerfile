@@ -1,5 +1,8 @@
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
+# Copy Docker CLI binary (needed by master bot to manage sub-bot containers)
+COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker
+
 # Install Node.js 20 for the WhatsApp bridge
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl ca-certificates gnupg git && \

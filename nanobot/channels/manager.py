@@ -161,6 +161,18 @@ class ChannelManager:
             except ImportError as e:
                 logger.warning("WeCom channel not available: {}", e)
 
+        # API channel (HTTP endpoint for programmatic / bot-to-bot communication)
+        if self.config.channels.api.enabled:
+            try:
+                from nanobot.channels.api import APIChannel
+                self.channels["api"] = APIChannel(
+                    self.config.channels.api,
+                    self.bus,
+                )
+                logger.info("API channel enabled on port {}", self.config.channels.api.port)
+            except ImportError as e:
+                logger.warning("API channel not available: {}", e)
+
         self._validate_allow_from()
 
     def _validate_allow_from(self) -> None:

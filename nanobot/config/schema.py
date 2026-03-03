@@ -210,6 +210,18 @@ class WecomConfig(Base):
     welcome_message: str = ""  # Welcome message for enter_chat event
 
 
+class APIChannelConfig(Base):
+    """HTTP API channel configuration for programmatic bot-to-bot communication."""
+
+    enabled: bool = False
+    port: int = 8080
+    api_key: str = ""  # Bearer token (empty = no authentication required)
+    allowed_ips: list[str] = Field(default_factory=list)  # IP allowlist (empty = allow all IPs)
+    # allow_from defaults to ["*"] so the base channel's sender check always passes;
+    # real authentication is handled by api_key + allowed_ips at the HTTP layer.
+    allow_from: list[str] = Field(default_factory=lambda: ["*"])
+
+
 class ChannelsConfig(Base):
     """Configuration for chat channels."""
 
@@ -226,6 +238,7 @@ class ChannelsConfig(Base):
     qq: QQConfig = Field(default_factory=QQConfig)
     matrix: MatrixConfig = Field(default_factory=MatrixConfig)
     wecom: WecomConfig = Field(default_factory=WecomConfig)
+    api: APIChannelConfig = Field(default_factory=APIChannelConfig)
 
 
 class AgentDefaults(Base):
