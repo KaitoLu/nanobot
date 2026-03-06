@@ -9,6 +9,14 @@
 #   docker compose -f docker-compose.multi.yml up -d          # 全部啟動
 #   docker compose -f docker-compose.multi.yml logs -f mimi   # 看 mimi 日誌
 #   docker ps --filter "label=nanobot.role=subbot"            # 列出所有子 bot
+#
+# 安全架構：
+#   master 不直接掛載 /var/run/docker.sock，改透過 docker-proxy (tecnativa/docker-socket-proxy)
+#   proxy 只開放必要的 Docker API endpoint，防止 master 存取宿主機其他容器
+#
+# 網路隔離架構：
+#   admin-net：master ↔ docker-proxy 專屬，mimi/lili 看不到 proxy
+#   botnet：   master ↔ mimi ↔ lili 日常溝通
 
 x-bot-base: &bot-base
   build:
@@ -28,6 +36,39 @@ x-bot-base: &bot-base
 
 services:
 
+  # ── Docker Socket Proxy (安全閘道) ────────────────────────────────────
+  # 只有這個服務掛載真實 docker.sock，master 透過它操作 Docker
+  # 白名單：只開放 nanobot 管理所需的 API，其他全部拒絕
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: nanobot-docker-proxy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      # 允許的 API（預設全部 0/禁止）
+      CONTAINERS: 1   # 列出/查詢容器
+      POST: 1         # 允許 POST（啟動、停止、重啟、建立容器）
+      DELETE: 1       # 允許刪除容器
+      INFO: 1         # docker info（建立容器時需要）
+      IMAGES: 1       # 列出 image（run 新容器時需要）
+      # 以下保持禁止（預設值）
+      NETWORKS: 0
+      VOLUMES: 0
+      EXEC: 0
+      SECRETS: 0
+      SWARM: 0
+      NODES: 0
+      SERVICES: 0
+      TASKS: 0
+      CONFIGS: 0
+      PLUGINS: 0
+      SYSTEM: 0
+      AUTH: 0
+      DISTRIBUTION: 0
+    networks:
+      - admin-net   # 只在 admin-net，mimi/lili 無法存取
+
   # ── Master Bot (管理員專用) ───────────────────────────────────────────
   master:
     <<: *bot-base
@@ -37,12 +78,16 @@ services:
     environment:
       # master 建新容器時用這個路徑寫設定檔（宿主機真實路徑）
       HOST_NANOBOT_DIR: "${HOME}/.nanobot"
+      # 透過 proxy 存取 Docker，不直接掛載 docker.sock
+      DOCKER_HOST: tcp://docker-proxy:2375
     volumes:
       - ~/.nanobot/master:/root/.nanobot
-      - /var/run/docker.sock:/var/run/docker.sock
       - ~/.nanobot:/root/.nanobot-host   # 讓 master 可寫新 bot 的設定
     networks:
-      - botnet
+      - admin-net   # 與 proxy 溝通
+      - botnet      # 與 mimi/lili 溝通
+    depends_on:
+      - docker-proxy
 
   # ── Mimi Bot ─────────────────────────────────────────────────────────
   mimi:
@@ -73,6 +118,9 @@ services:
       - botnet
 
 networks:
+  admin-net:
+    driver: bridge
+    name: nanobot-admin-net   # master ↔ docker-proxy 專屬，子 bot 不在此網路
   botnet:
     driver: bridge
-    name: nanobot-botnet   # 固定網路名稱，master 建新容器時用這個
+    name: nanobot-botnet      # 固定網路名稱，master 建新容器時用這個
