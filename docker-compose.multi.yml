@@ -117,6 +117,34 @@ services:
     networks:
       - botnet
 
+  # ── Playwright MCP (共用瀏覽器自動化服務) ─────────────────────────────
+  playwright-mcp:
+    image: mcr.microsoft.com/playwright/mcp
+    container_name: nanobot-playwright
+    restart: unless-stopped
+    entrypoint: ["node", "cli.js"]
+    command:
+      - "--headless"
+      - "--browser"
+      - "chromium"
+      - "--no-sandbox"
+      - "--port"
+      - "8931"
+      - "--host"
+      - "0.0.0.0"
+      - "--allowed-hosts"
+      - "*"
+    networks:
+      - botnet
+    labels:
+      nanobot.role: service
+      nanobot.name: playwright-mcp
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
 networks:
   admin-net:
     driver: bridge

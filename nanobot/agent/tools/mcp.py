@@ -35,6 +35,9 @@ class MCPToolWrapper(Tool):
         return self._parameters
 
     async def execute(self, **kwargs: Any) -> str:
+        import base64
+        import os
+        import tempfile
         from mcp import types
 
         try:
@@ -66,6 +69,17 @@ class MCPToolWrapper(Tool):
         for block in result.content:
             if isinstance(block, types.TextContent):
                 parts.append(block.text)
+            elif isinstance(block, types.ImageContent):
+                # Decode base64 image and save to a local temp file so the
+                # message tool can attach it (playwright runs in a separate
+                # container and its filesystem is not accessible from here).
+                ext = block.mimeType.split("/")[-1] if block.mimeType else "png"
+                tmp_dir = tempfile.mkdtemp(prefix="mcp_img_")
+                img_path = os.path.join(tmp_dir, f"screenshot.{ext}")
+                with open(img_path, "wb") as f:
+                    f.write(base64.b64decode(block.data))
+                logger.debug("MCP image saved to {}", img_path)
+                parts.append(f"[image saved to: {img_path}]")
             else:
                 parts.append(str(block))
         return "\n".join(parts) or "(no output)"

@@ -222,6 +222,16 @@ class APIChannelConfig(Base):
     allow_from: list[str] = Field(default_factory=lambda: ["*"])
 
 
+class APIChannelConfig(Base):
+    """HTTP API channel configuration for programmatic bot-to-bot communication."""
+
+    enabled: bool = False
+    port: int = 8080
+    api_key: str = ""  # Bearer token for auth (empty = no auth)
+    allowed_ips: list[str] = Field(default_factory=list)  # IP allowlist (empty = allow all)
+    allow_from: list[str] = Field(default_factory=lambda: ["*"])
+
+
 class ChannelsConfig(Base):
     """Configuration for chat channels."""
 
